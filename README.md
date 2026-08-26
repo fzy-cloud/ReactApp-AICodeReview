@@ -85,8 +85,15 @@ antd 组件直接 `import { Button } from 'antd'` 使用即可。
 
 ## AI Code Review
 
-每次向 `master` 提 PR 时，自动用 **智谱 GLM**（OpenAI 兼容接口）对变更做代码评审，
-并以评论形式发到 PR 下。仅 PR 触发，不消耗 push 构建额度。
+每次向 `dev` 提 PR 时，自动用 **智谱 GLM**（OpenAI 兼容接口）对变更做代码评审。
+仅 PR 触发，不消耗 push 构建额度。
+
+**评审能力（对应需求 2.1 / 2.2 / 2.3）：**
+- 评审维度：正确性、规范一致性、风险点（安全/性能）、可维护性。
+- 增量评审：只评 PR 的 diff，避免全量噪音。
+- 变更摘要：自动生成面向 reviewer 的变更摘要，帮助快速建立上下文。
+- 风险分级：整体与每条评论分为 `阻塞 / 建议 / 参考` 三级。
+- 交互形态：可定位到文件与行号的**行内评论** + 一条**顶层总评**（含摘要与分级）。
 
 **接入（一次性）：**
 
@@ -96,9 +103,10 @@ antd 组件直接 `import { Button } from 'antd'` 使用即可。
 3. 可选：用 `ZHIPU_MODEL` 覆盖默认模型（默认 `glm-4-flash`），
    用 `ZHIPU_API_BASE` 覆盖默认接口地址（默认 `https://open.bigmodel.cn/api/paas/v4`）。
 
-**原理：** `ai-review.yml` 在 PR 触发时取 diff（`gh api` 拿合并 diff），
-交给 `scripts/ai-review.mjs` 调用智谱生成中文评审，再 `gh pr comment` 发布。
-要改评审风格/规则，编辑 `scripts/ai-review.mjs` 里的 `SYSTEM_PROMPT` 即可。
+**原理：** `ai-review.yml` 在 PR（目标分支 `dev`）触发时取 diff（`gh api` 拿合并 diff），
+交给 `scripts/ai-review.mjs` 调用智谱，要求模型返回**结构化 JSON**（摘要 + 风险分级 + 行内评论）。
+随后 workflow 用 `actions/github-script` 把可定位行号的评论发布为 PR 行内评论，
+其余汇总为一条顶层评论。要改评审维度/风格，编辑 `scripts/ai-review.mjs` 里的 `SYSTEM_PROMPT` 即可。
 
 ## 费用
 - 公开仓库：Actions 无限免费分钟；私有仓库：每月 2000 分钟免费
