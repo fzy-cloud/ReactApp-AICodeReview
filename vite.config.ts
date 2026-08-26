@@ -6,6 +6,27 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   base: './',
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        // 将体积较大的第三方库拆成独立 vendor chunk，提升缓存复用率
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('antd') || id.includes('@ant-design') || id.includes('rc-')) {
+              return 'antd'
+            }
+            if (
+              id.includes('react') ||
+              id.includes('scheduler') ||
+              id.includes('react-router')
+            ) {
+              return 'react-vendor'
+            }
+          }
+        },
+      },
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,

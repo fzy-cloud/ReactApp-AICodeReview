@@ -1,5 +1,6 @@
+import { Suspense } from 'react'
 import { Outlet, useLocation, useNavigate, useRoutes } from 'react-router-dom'
-import { ConfigProvider, Layout, Menu, Typography, theme } from 'antd'
+import { ConfigProvider, Layout, Menu, Spin, Typography, theme } from 'antd'
 
 import { routes, buildMenuItems } from './router/routes'
 
@@ -28,7 +29,15 @@ function AppLayout() {
           />
         </Header>
         <Content style={{ padding: 24 }}>
-          <Outlet />
+          <Suspense
+            fallback={
+              <div style={{ textAlign: 'center', padding: 48 }}>
+                <Spin />
+              </div>
+            }
+          >
+            <Outlet />
+          </Suspense>
         </Content>
       </Layout>
     </ConfigProvider>

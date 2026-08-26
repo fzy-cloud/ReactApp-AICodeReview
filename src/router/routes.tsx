@@ -1,9 +1,8 @@
-import type { ReactNode } from 'react'
+import { lazy, type ReactNode } from 'react'
 import type { MenuProps } from 'antd'
 
 import Home from '../pages/Home'
 import About from '../pages/About'
-import TablePage from '../pages/Table'
 
 /** 单个路由配置（页面级，相对根路径） */
 export interface RouteConfig {
@@ -19,15 +18,18 @@ export interface RouteConfig {
 
 /**
  * 路由表 —— 后续添加页面只需在此追加一项即可。
+ * 新增页面请使用下方 lazy 包装，以获得代码分割（减小首屏体积）。
  *
  * 示例：
- *   import User from '../pages/User'
+ *   const User = lazy(() => import('../pages/User'))
  *   { path: 'user', element: <User />, label: '用户' }
  */
+const Table = lazy(() => import('../pages/Table'))
+
 export const routes: RouteConfig[] = [
   { index: true, element: <Home />, label: '首页' },
   { path: 'about', element: <About />, label: '关于' },
-  { path: 'table', element: <TablePage />, label: '表格' },
+  { path: 'table', element: <Table />, label: '表格' },
 ]
 
 /** 根据路由表生成 antd Menu 所需的 items（仅包含带 label 的节点） */
