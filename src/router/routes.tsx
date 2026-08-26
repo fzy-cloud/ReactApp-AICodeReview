@@ -3,6 +3,7 @@ import type { MenuProps } from 'antd'
 
 import Home from '../pages/Home'
 import About from '../pages/About'
+import TablePage from '../pages/Table'
 
 /** 单个路由配置（页面级，相对根路径） */
 export interface RouteConfig {
@@ -26,6 +27,7 @@ export interface RouteConfig {
 export const routes: RouteConfig[] = [
   { index: true, element: <Home />, label: '首页' },
   { path: 'about', element: <About />, label: '关于' },
+  { path: 'table', element: <TablePage />, label: '表格' },
 ]
 
 /** 根据路由表生成 antd Menu 所需的 items（仅包含带 label 的节点） */
