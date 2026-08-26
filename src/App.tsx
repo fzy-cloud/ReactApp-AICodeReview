@@ -1,19 +1,15 @@
-import { Link, Outlet, Route, Routes, useLocation } from 'react-router-dom'
+import { Outlet, useLocation, useNavigate, useRoutes } from 'react-router-dom'
 import { ConfigProvider, Layout, Menu, Typography, theme } from 'antd'
 
-import Home from './pages/Home'
-import About from './pages/About'
+import { routes, buildMenuItems } from './router/routes'
 
 const { Header, Content } = Layout
 const { Title } = Typography
 
 function AppLayout() {
   const location = useLocation()
-
-  const menuItems = [
-    { key: '/', label: <Link to="/">首页</Link> },
-    { key: '/about', label: <Link to="/about">关于</Link> },
-  ]
+  const navigate = useNavigate()
+  const menuItems = buildMenuItems()
 
   return (
     <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm }}>
@@ -27,6 +23,7 @@ function AppLayout() {
             mode="horizontal"
             selectedKeys={[location.pathname]}
             items={menuItems}
+            onClick={({ key }) => navigate(key)}
             style={{ flex: 1, minWidth: 0 }}
           />
         </Header>
@@ -39,12 +36,17 @@ function AppLayout() {
 }
 
 export default function App() {
-  return (
-    <Routes>
-      <Route path="/" element={<AppLayout />}>
-        <Route index element={<Home />} />
-        <Route path="about" element={<About />} />
-      </Route>
-    </Routes>
-  )
+  const element = useRoutes([
+    {
+      path: '/',
+      element: <AppLayout />,
+      children: routes.map((r) =>
+        r.index
+          ? { index: true, element: r.element }
+          : { path: r.path, element: r.element },
+      ),
+    },
+  ])
+
+  return element
 }
