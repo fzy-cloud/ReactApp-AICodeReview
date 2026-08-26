@@ -2,14 +2,14 @@ name: 部署到 GitHub Pages
 
 on:
   push:
-    branches: [master, dev]
+    branches: [master]
 
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# 用分支名区分并发组，dev 和 master 的部署互不取消
+# 用分支名区分并发组
 concurrency:
   group: pages-${{ github.ref_name }}
   cancel-in-progress: false

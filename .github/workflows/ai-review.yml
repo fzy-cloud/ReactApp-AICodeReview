@@ -1,9 +1,9 @@
 name: AI Code Review
 
-# 仅在 PR 触发（针对 master 分支），最省额度
+# 仅在 PR 触发（针对 dev 分支），最省额度
 on:
   pull_request:
-    branches: [master]
+    branches: [dev]
 
 permissions:
   contents: read

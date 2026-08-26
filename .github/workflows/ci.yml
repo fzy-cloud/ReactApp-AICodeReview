@@ -2,7 +2,7 @@ name: CI - 构建与测试
 
 on:
   push:
-    branches: [master, dev]
+    branches: [master]
   pull_request:
     branches: [master]
 
