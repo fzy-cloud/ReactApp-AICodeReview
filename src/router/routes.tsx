@@ -5,6 +5,7 @@ import Home from '../pages/Home'
 import About from '../pages/About'
 import ReviewTest from '../pages/ReviewTest'
 import Users from '../pages/Users'
+import Settings from '../pages/Settings'
 
 /** 单个路由配置（页面级，相对根路径） */
 export interface RouteConfig {
@@ -34,6 +35,7 @@ export const routes: RouteConfig[] = [
   { path: 'table', element: <Table />, label: '表格' },
   { path: 'review-test', element: <ReviewTest />, label: 'Review 测试' },
   { path: 'users', element: <Users />, label: '用户管理' },
+  { path: 'settings', element: <Settings />, label: '系统设置' },
 ]
 
 /** 根据路由表生成 antd Menu 所需的 items（仅包含带 label 的节点） */
