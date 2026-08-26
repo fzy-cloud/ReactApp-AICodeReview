@@ -19,8 +19,8 @@ describe('App', () => {
         <App />
       </MemoryRouter>,
     )
-    const btn = screen.getByText(/点击了 0 次/)
+    const btn = screen.getByRole('button', { name: /点击了 0 次/ })
     fireEvent.click(btn)
-    expect(screen.getByText(/点击了 1 次/)).not.toBeNull()
+    expect(screen.getByRole('button', { name: /点击了 1 次/ })).toBeTruthy()
   })
 })
