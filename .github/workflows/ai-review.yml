@@ -7,7 +7,7 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write # 用于在 PR 下发布评论
+  pull-requests: write # 用于发布行内评论与顶层评论
 
 jobs:
   ai-review:
@@ -16,7 +16,6 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v4
         with:
-          # 需要完整历史以正确生成 diff
           fetch-depth: 0
 
       - name: 获取 PR diff
@@ -25,7 +24,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          # 使用 GitHub API 获取合并后的 diff（比 git diff 更可靠）
           diff=$(gh api repos/${{ github.repository }}/pulls/${PR_NUMBER} \
             --header "Accept: application/vnd.github.v3.diff" | head -c 60000)
           {
@@ -34,7 +32,7 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-      - name: 运行 AI 评审（智谱 GLM）
+      - name: 运行 AI 评审（智谱 GLM，结构化 JSON）
         if: ${{ steps.diff.outputs.diff != '' }}
         id: review
         env:
@@ -48,13 +46,62 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-      - name: 发布评审评论到 PR
+      # 发布行内评论（需求 2.2 MR 行内评论）
+      - name: 发布行内评论
         if: ${{ steps.diff.outputs.diff != '' && steps.review.outputs.result != '' }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          REVIEW: ${{ steps.review.outputs.result }}
-        run: |
-          gh pr comment "$PR_NUMBER" --body "## 🤖 AI Code Review（智谱 GLM）
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const result = JSON.parse(`${{ steps.review.outputs.result }}`);
+            const comments = result.comments || [];
+            const sha = context.payload.pull_request.head.sha;
+            const prNumber = context.payload.pull_request.number;
 
-          $REVIEW"
+            for (const c of comments) {
+              if (!c.path || c.line == null) continue; // 无法定位行的，后面放顶层
+              try {
+                await github.rest.pulls.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: prNumber,
+                  commit_id: sha,
+                  path: c.path,
+                  line: Number(c.line),
+                  side: 'RIGHT',
+                  body: `**[${c.severity || 'info'}] ${c.category || ''}**\n\n${c.body}`,
+                });
+              } catch (e) {
+                core.warning(`行内评论失败 ${c.path}:${c.line} - ${e.message}`);
+              }
+            }
+
+      # 发布顶层总评（变更摘要 + 风险分级 + 无法定位行的评论）
+      - name: 发布顶层总评
+        if: ${{ steps.diff.outputs.diff != '' && steps.review.outputs.result != '' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const result = JSON.parse(`${{ steps.review.outputs.result }}`);
+            const riskMap = { block: '🚫 阻塞', warn: '⚠️ 建议', info: 'ℹ️ 参考', none: '✅ 无明显问题' };
+            const risk = riskMap[result.risk] || 'ℹ️ 参考';
+
+            let body = `## 🤖 AI Code Review（智谱 GLM）\n\n`;
+            body += `**整体风险分级**：${risk}\n\n`;
+            body += `**变更摘要**：${result.summary || '（无）'}\n\n`;
+
+            const topComments = (result.comments || []).filter(c => !c.path || c.line == null);
+            if (topComments.length) {
+              body += `### 其他意见（无法定位到具体行）\n`;
+              for (const c of topComments) {
+                body += `- **[${c.severity || 'info'}] ${c.category || ''}** ${c.body}\n`;
+              }
+            } else if ((result.comments || []).length === 0) {
+              body += `本次变更未发现问题，整体良好。\n`;
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body,
+            });
