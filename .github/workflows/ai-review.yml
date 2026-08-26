@@ -1,0 +1,60 @@
+name: AI Code Review
+
+# 仅在 PR 触发（针对 master 分支），最省额度
+on:
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+  pull-requests: write # 用于在 PR 下发布评论
+
+jobs:
+  ai-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          # 需要完整历史以正确生成 diff
+          fetch-depth: 0
+
+      - name: 获取 PR diff
+        id: diff
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # 使用 GitHub API 获取合并后的 diff（比 git diff 更可靠）
+          diff=$(gh api repos/${{ github.repository }}/pulls/${PR_NUMBER} \
+            --header "Accept: application/vnd.github.v3.diff" | head -c 60000)
+          {
+            echo "diff<<EOF"
+            echo "$diff"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: 运行 AI 评审（智谱 GLM）
+        if: ${{ steps.diff.outputs.diff != '' }}
+        id: review
+        env:
+          ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
+          ZHIPU_MODEL: glm-4-flash
+        run: |
+          review=$(node scripts/ai-review.mjs "${{ steps.diff.outputs.diff }}")
+          {
+            echo "result<<EOF"
+            echo "$review"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: 发布评审评论到 PR
+        if: ${{ steps.diff.outputs.diff != '' && steps.review.outputs.result != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REVIEW: ${{ steps.review.outputs.result }}
+        run: |
+          gh pr comment "$PR_NUMBER" --body "## 🤖 AI Code Review（智谱 GLM）
+
+          $REVIEW"

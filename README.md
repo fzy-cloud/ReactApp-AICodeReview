@@ -16,10 +16,18 @@
 react-ts-antd-app/
 ├── .github/workflows/
 │   ├── ci.yml          # 构建 + 测试（push / PR 触发）
-│   └── deploy.yml      # 部署到 GitHub Pages（push main 触发）
+│   ├── deploy.yml      # 部署到 GitHub Pages（push main 触发）
+│   └── ai-review.yml   # AI 代码评审（仅 PR 触发）
+├── scripts/
+│   └── ai-review.mjs   # 取 PR diff 并调用智谱 GLM 生成评审
 ├── src/
-│   ├── main.tsx
-│   ├── App.tsx         # 一个演示用的 antd 页面
+│   ├── main.tsx        # 入口，HashRouter 包裹 App
+│   ├── App.tsx         # 布局 + 路由渲染（useRoutes）
+│   ├── router/
+│   │   └── routes.tsx  # 集中路由表 + 导航菜单生成
+│   ├── pages/
+│   │   ├── Home.tsx    # 首页
+│   │   └── About.tsx   # 关于页
 │   ├── App.test.tsx    # 组件测试
 │   └── vite-env.d.ts
 ├── index.html
@@ -54,8 +62,43 @@ npm test           # 跑测试
 npm run build      # 构建到 dist/
 ```
 
-## 加页面 / 组件
-在 `src/` 下照着 `App.tsx` 写即可，antd 组件直接 `import { Button } from 'antd'`。
+## 路由与加页面
+
+- 路由使用 `react-router-dom` 的 **HashRouter**（URL 形如 `/#/about`），
+  适配 GitHub Pages 相对路径 `base: './'`，刷新子路由不会 404。
+- 所有页面路由集中在 `src/router/routes.tsx` 的 `routes` 数组中。
+
+**新增一个页面只需两步：**
+
+1. 在 `src/pages/` 下新建组件，如 `User.tsx`；
+2. 在 `src/router/routes.tsx` 顶部 `import` 并追加一项：
+
+   ```ts
+   import User from '../pages/User'
+   // ...
+   { path: 'user', element: <User />, label: '用户' }
+   ```
+
+带 `label` 的页面会自动出现在顶部导航菜单；根默认页用 `index: true`。
+
+antd 组件直接 `import { Button } from 'antd'` 使用即可。
+
+## AI Code Review
+
+每次向 `master` 提 PR 时，自动用 **智谱 GLM**（OpenAI 兼容接口）对变更做代码评审，
+并以评论形式发到 PR 下。仅 PR 触发，不消耗 push 构建额度。
+
+**接入（一次性）：**
+
+1. 到智谱开放平台申请 API Key；
+2. 仓库 **Settings → Secrets and variables → Actions → New repository secret**，
+   新增 `ZHIPU_API_KEY`，值为你的 key；
+3. 可选：用 `ZHIPU_MODEL` 覆盖默认模型（默认 `glm-4-flash`），
+   用 `ZHIPU_API_BASE` 覆盖默认接口地址（默认 `https://open.bigmodel.cn/api/paas/v4`）。
+
+**原理：** `ai-review.yml` 在 PR 触发时取 diff（`gh api` 拿合并 diff），
+交给 `scripts/ai-review.mjs` 调用智谱生成中文评审，再 `gh pr comment` 发布。
+要改评审风格/规则，编辑 `scripts/ai-review.mjs` 里的 `SYSTEM_PROMPT` 即可。
 
 ## 费用
 - 公开仓库：Actions 无限免费分钟；私有仓库：每月 2000 分钟免费
