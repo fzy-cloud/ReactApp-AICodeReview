@@ -1,30 +1,50 @@
-import { useState } from 'react'
-import { Button, ConfigProvider, Layout, Typography, theme } from 'antd'
+import { Link, Outlet, Route, Routes, useLocation } from 'react-router-dom'
+import { ConfigProvider, Layout, Menu, Typography, theme } from 'antd'
+
+import Home from './pages/Home'
+import About from './pages/About'
 
 const { Header, Content } = Layout
-const { Title, Paragraph } = Typography
+const { Title } = Typography
 
-export default function App() {
-  const [count, setCount] = useState(0)
+function AppLayout() {
+  const location = useLocation()
+
+  const menuItems = [
+    { key: '/', label: <Link to="/">首页</Link> },
+    { key: '/about', label: <Link to="/about">关于</Link> },
+  ]
 
   return (
     <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm }}>
       <Layout style={{ minHeight: '100vh' }}>
-        <Header>
-          <Title level={3} style={{ color: '#fff', margin: '12px 0' }}>
+        <Header style={{ display: 'flex', alignItems: 'center' }}>
+          <Title level={3} style={{ color: '#fff', margin: '12px 16px 12px 0' }}>
             个人 CI/CD 演示
           </Title>
+          <Menu
+            theme="dark"
+            mode="horizontal"
+            selectedKeys={[location.pathname]}
+            items={menuItems}
+            style={{ flex: 1, minWidth: 0 }}
+          />
         </Header>
         <Content style={{ padding: 24 }}>
-          <Title level={2}>个人 React 19 + antd 项目</Title>
-          <Paragraph>
-            由 GitHub Actions 自动构建、测试，并部署到 GitHub Pages。
-          </Paragraph>
-          <Button type="primary" onClick={() => setCount((c) => c + 1)}>
-            点击了 {count} 次
-          </Button>
+          <Outlet />
         </Content>
       </Layout>
     </ConfigProvider>
+  )
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<AppLayout />}>
+        <Route index element={<Home />} />
+        <Route path="about" element={<About />} />
+      </Route>
+    </Routes>
   )
 }
