@@ -60,7 +60,7 @@ jobs:
             for (const c of comments) {
               if (!c.path || c.line == null) continue; // 无法定位行的，后面放顶层
               try {
-                await github.rest.pulls.createComment({
+                await github.rest.pulls.createReviewComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   pull_number: prNumber,
