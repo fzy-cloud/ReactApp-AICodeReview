@@ -46,8 +46,8 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-      # 发布行内评论（需求 2.2 MR 行内评论）
-      - name: 发布行内评论
+      # 发布行内评论 + 顶层总评（合并为一步，行内失败自动降级到顶层）
+      - name: 发布评审评论
         if: ${{ steps.diff.outputs.diff != '' && steps.review.outputs.result != '' }}
         uses: actions/github-script@v7
         with:
@@ -56,13 +56,20 @@ jobs:
             const comments = result.comments || [];
             const sha = context.payload.pull_request.head.sha;
             const prNumber = context.payload.pull_request.number;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
 
+            // 行内评论尝试，失败则收集进降级列表
+            const fallback = [];
             for (const c of comments) {
-              if (!c.path || c.line == null) continue; // 无法定位行的，后面放顶层
+              if (!c.path || c.line == null) {
+                fallback.push(c); // 本就无法定位行的，直接放顶层
+                continue;
+              }
               try {
                 await github.rest.pulls.createReviewComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
+                  owner,
+                  repo,
                   pull_number: prNumber,
                   commit_id: sha,
                   path: c.path,
@@ -72,16 +79,11 @@ jobs:
                 });
               } catch (e) {
                 core.warning(`行内评论失败 ${c.path}:${c.line} - ${e.message}`);
+                fallback.push(c); // 降级到顶层，避免意见丢失
               }
             }
 
-      # 发布顶层总评（变更摘要 + 风险分级 + 无法定位行的评论）
-      - name: 发布顶层总评
-        if: ${{ steps.diff.outputs.diff != '' && steps.review.outputs.result != '' }}
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const result = JSON.parse(`${{ steps.review.outputs.result }}`);
+            // 顶层总评：变更摘要 + 风险分级 + 降级/无法定位的评论
             const riskMap = { block: '🚫 阻塞', warn: '⚠️ 建议', info: 'ℹ️ 参考', none: '✅ 无明显问题' };
             const risk = riskMap[result.risk] || 'ℹ️ 参考';
 
@@ -89,19 +91,21 @@ jobs:
             body += `**整体风险分级**：${risk}\n\n`;
             body += `**变更摘要**：${result.summary || '（无）'}\n\n`;
 
-            const topComments = (result.comments || []).filter(c => !c.path || c.line == null);
-            if (topComments.length) {
-              body += `### 其他意见（无法定位到具体行）\n`;
-              for (const c of topComments) {
-                body += `- **[${c.severity || 'info'}] ${c.category || ''}** ${c.body}\n`;
+            if (fallback.length) {
+              body += `### 其他意见（无法定位到具体行 / 行内发布失败）\n`;
+              for (const c of fallback) {
+                const loc = c.path ? `${c.path}${c.line != null ? ':' + c.line : ''} ` : '';
+                body += `- **[${c.severity || 'info'}] ${c.category || ''}** ${loc}${c.body}\n`;
               }
-            } else if ((result.comments || []).length === 0) {
+            } else if (comments.length === 0) {
               body += `本次变更未发现问题，整体良好。\n`;
+            } else {
+              body += `以上意见均已作为行内评论发布到对应代码位置。\n`;
             }
 
             await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
+              owner,
+              repo,
+              issue_number: prNumber,
               body,
             });
