@@ -67,8 +67,8 @@ const SYSTEM_PROMPT = [
   '  "comments": [',
   '    {',
   '      "path": "相对仓库根目录的文件路径，如 src/pages/Home.tsx",',
-  '      "line": 行号（整数）。必须是 diff 中「新增/修改行」(以 + 开头) 的 RIGHT 行号；',
-  '             无法确定或该行不是新增行时填 null。',
+  '      "line": 整数。diff 中每个「新增行」前面已用「+行号」标注了它在【新文件】中的绝对行号（例如「+142」），',
+  '             请直接原样返回该标注的数字，不要自行计数；无法确定或该行不是新增行时填 null。',
   '      "severity": "block|warn|info（单条严重级别，严格对应上面的定义）",',
   '      "category": "正确性|安全|可维护性（对应评审维度）",',
   '      "body": "意见：先描述问题(引用具体代码/行)，再给「修复建议」并附简短代码示例。每条聚焦一个问题。"',
@@ -79,12 +79,49 @@ const SYSTEM_PROMPT = [
   '【规则】',
   '- 只输出 JSON，不包裹代码块，不要前后废话。',
   '- 每条 comment 必须带 severity(block/warn/info) 与 category，不允许无级别发现。',
-  '- line 必须是 diff 中「新增/修改行」(以 + 开头) 的 RIGHT 行号；不确定就填 null（会作为顶层评论，不要乱猜）。',
+  '- diff 里每个新增行都已用「+绝对行号」标注了它在新文件中的行号，line 必须直接复制该数字，禁止自行推算或偏移；',
+  '  不确定就填 null（作为顶层评论，不要乱猜）。',
   '- 没有问题时 comments 为空数组、risk 为 none；但只要有改动，summary 也要客观描述。',
   '- body 必须有「问题描述 + 修复建议」，可含少量代码示例，精炼有建设性。',
 ].join('\n')
 
-const userContent = '以下是本次 PR 的 git diff：\n\n' + diff
+// 预先把每个新增行的「新文件绝对行号」标注出来，避免让模型自行计数（LLM 数 diff 行号极易出错，
+// 这是行内评论错位的最常见根因）。标注后模型只需「照抄」数字即可，无需推算 + 行号。
+function annotateDiff(diffText) {
+  const lines = diffText.split('\n')
+  const out = []
+  let newLineNo = 0
+  let inHunk = false
+  for (const raw of lines) {
+    if (raw.startsWith('@@')) {
+      const m = raw.match(/@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/)
+      if (m) {
+        newLineNo = parseInt(m[2], 10)
+        inHunk = true
+      }
+      out.push(raw)
+      continue
+    }
+    if (!inHunk) {
+      out.push(raw)
+      continue
+    }
+    if (raw.startsWith(' ')) {
+      newLineNo++
+      out.push(raw)
+    } else if (raw.startsWith('-')) {
+      out.push(raw)
+    } else if (raw.startsWith('+')) {
+      out.push(`+${newLineNo}\t${raw.slice(1)}`)
+      newLineNo++
+    } else {
+      out.push(raw)
+    }
+  }
+  return out.join('\n')
+}
+
+const userContent = '以下是本次 PR 的 git diff（每个新增行前的「+数字」为其在新文件中的绝对行号，请直接引用该数字）：\n\n' + annotateDiff(diff)
 
 async function main() {
   const resp = await fetch(`${API_BASE}/chat/completions`, {
