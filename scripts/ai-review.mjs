@@ -8,6 +8,7 @@
 // 设计目标：个人免费、不依赖公司资源、仅 PR 触发、结构化输出支持行内评论与风险分级。
 
 import process from 'node:process'
+import fs from 'node:fs'
 
 const API_BASE = process.env.ZHIPU_API_BASE || 'https://open.bigmodel.cn/api/paas/v4'
 const MODEL = process.env.ZHIPU_MODEL || 'glm-4-flash'
@@ -18,7 +19,10 @@ if (!API_KEY) {
   process.exit(1)
 }
 
-const diff = process.argv[2] || ''
+const diffArg = process.argv[2] || ''
+// 支持以文件路径方式传入（workflow 将 diff 写入 pr.diff 后传文件路径），
+// 也兼容直接把 diff 文本作为命令行参数传入的写法。
+const diff = diffArg && fs.existsSync(diffArg) ? fs.readFileSync(diffArg, 'utf8') : diffArg
 if (!diff.trim()) {
   console.log(JSON.stringify({ summary: '本次 PR 没有可评审的代码变更。', risk: 'none', comments: [] }))
   process.exit(0)

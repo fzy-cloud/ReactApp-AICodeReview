@@ -16,3 +16,7 @@ npm-debug.log*
 
 # TS 增量编译缓存
 *.tsbuildinfo
+
+# AI 评审临时产物（CI 生成的 diff / 评审 JSON，勿提交）
+pr.diff
+review.json
