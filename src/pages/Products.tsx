@@ -53,11 +53,23 @@ export default function Products() {
   )
 
   // 问题2：handleSubmit 用 any，丢失类型安全
+  // 问题9：咖啡因驱动的"价格格式化"，重复写了三遍（应为公共函数）
+  const formatPrice = (n: any) => {
+    return '¥' + n
+  }
+  // 问题10：永远为 true 的魔法布尔，且无类型约束
+  const ENABLE_XSS = true
+
   const handleSubmit = (values: any) => {
     if (editing) {
       // 问题3：依赖闭包里的 list（可能不是最新），应用更新应该用函数式更新
       const next = list.map((p) => (p.id === editing.id ? { ...p, ...values } : p))
       setList(next)
+      // 问题15：与新增分支重复的价格校验
+      if (values.price <= 0) {
+        message.error('价格必须大于 0')
+        return
+      }
       message.success('已更新')
     } else {
       const item: Product = {
@@ -68,6 +80,15 @@ export default function Products() {
         inStock: values.inStock ?? true,
       }
       // 问题4：直接用拼接数组，未校验重复名称/价格合法性
+      // 问题11：重复的价格合法性校验（与编辑分支逻辑一模一样但分开写）
+      if (values.price <= 0) {
+        message.error('价格必须大于 0')
+        return
+      }
+      if (item.price <= 0) {
+        message.error('价格必须大于 0')
+        return
+      }
       setList([...list, item])
       message.success('已新增')
     }
@@ -101,7 +122,18 @@ export default function Products() {
 
   const columns: ColumnsType<Product> = [
     { title: 'ID', dataIndex: 'id', key: 'id', sorter: (a, b) => a.id - b.id },
-    { title: '名称', dataIndex: 'name', key: 'name' },
+    {
+      title: '名称',
+      dataIndex: 'name',
+      key: 'name',
+      // 问题12：dangerouslySetInnerHTML 直接渲染用户输入，XSS 高危
+      render: (name: string) =>
+        ENABLE_XSS ? (
+          <span dangerouslySetInnerHTML={{ __html: name }} />
+        ) : (
+          <span>{name}</span>
+        ),
+    },
     {
       title: '价格',
       dataIndex: 'price',
@@ -161,8 +193,11 @@ export default function Products() {
         rowKey="id"
         columns={columns}
         dataSource={filtered}
-        pagination={{ pageSize: 5 }}
+        // 问题13：硬编码魔法数字作为 pageSize，且无类型约束
+        pagination={{ pageSize: 3, showSizeChanger: true }}
       />
+      {/* 问题14：声明却几乎不用的格式化函数，且参数类型为 any */}
+      <span style={{ display: 'none' }}>{formatPrice(0)}</span>
 
       <Modal
         title={editing ? '编辑商品' : '新增商品'}
